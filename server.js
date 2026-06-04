@@ -5,53 +5,64 @@ const cloudinary = require('cloudinary').v2;
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// 1. 設定你的 Cloudinary 專屬金鑰
+// 1. 設定你的 Cloudinary 專屬金鑰 (務必確認是你剛才申請的那三組)
 cloudinary.config({ 
     cloud_name: 'dkmpezxqx', 
     api_key: '327316197578417', 
     api_secret: 'LsDwEHShAnEM09eQ9XEd8OXA_JM' 
 });
 
-// 2. 設定 Multer 使用記憶體來暫存照片，不寫入容易失憶的免費硬碟
 const storage = multer.memoryStorage();
 const upload = multer({ storage: storage });
 
 app.use(express.static('public'));
 
-// 3. 接收照片並自動轉傳到 Cloudinary
+// 取得台灣時間的日期字串 (格式：YYYY-MM-DD)
+function getTaiwanDateString() {
+    const date = new Date();
+    // 台灣是 UTC+8
+    const twDate = new Date(date.getTime() + (8 * 60 * 60 * 1000));
+    return twDate.toISOString().split('T')[0];
+}
+
+// 2. 接收照片並貼上「日期標籤」
 app.post('/upload', upload.single('photo'), (req, res) => {
-    if (!req.file) {
-        return res.status(400).send('沒有選擇照片');
-    }
+    if (!req.file) return res.status(400).send('沒有選擇照片');
 
-    console.log('準備將照片上傳至 Cloudinary...');
+    const todayTag = getTaiwanDateString(); // 取得今天的日期當作標籤
 
-    // 開啟通往 Cloudinary 的上傳通道
     const uploadStream = cloudinary.uploader.upload_stream(
         {
-            folder: 'study-tracker', // 會在圖床自動建立分類資料夾
-            fetch_format: 'auto',    // f_auto
-            quality: 'auto'          // q_auto
+            folder: 'study-tracker',
+            tags: [todayTag],        // 幫照片貼上日期的標籤！
+            fetch_format: 'auto',
+            quality: 'auto'
         },
         (error, result) => {
-            if (error) {
-                console.error('上傳至 Cloudinary 失敗：', error);
-                return res.status(500).send('圖床連線失敗');
-            }
-            
-            // 這裡會印出照片的真實網址
-            console.log('✅ 照片永久保存成功！');
-            console.log('檔案大小：', result.bytes, 'bytes');
-            console.log('照片專屬網址：', result.secure_url);
-            
-            res.send('上傳成功');
+            if (error) return res.status(500).send('上傳失敗');
+            res.json({ success: true, url: result.secure_url });
         }
     );
-
-    // 將網頁收到的照片資料直接灌進通道裡上傳
     uploadStream.end(req.file.buffer);
 });
 
-app.listen(PORT, () => {
-    console.log(`伺服器啟動成功！Port: ${PORT}`);
+// 3. 【新功能】根據日期去圖床把照片找出來！
+app.get('/api/photos', async (req, res) => {
+    const targetDate = req.query.date; // 網頁傳來的日期
+    if (!targetDate) return res.status(400).send('請提供日期');
+
+    try {
+        // 去圖床搜尋擁有這個日期標籤的照片
+        const result = await cloudinary.api.resources_by_tag(targetDate, { max_results: 30 });
+        const urls = result.resources.map(img => img.secure_url);
+        res.json({ urls: urls });
+    } catch (error) {
+        // 如果那天沒有上傳照片，Cloudinary 會回傳 404 錯誤，我們就回傳空陣列
+        if (error.http_code === 404) {
+            return res.json({ urls: [] });
+        }
+        res.status(500).send('讀取歷史照片失敗');
+    }
 });
+
+app.listen(PORT, () => console.log(`伺服器啟動成功！Port: ${PORT}`));

@@ -5,45 +5,150 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>專屬讀書打卡</title>
     <style>
-        body { font-family: sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; background-color: #fce4ec; margin: 0; }
-        .upload-btn { background-color: #ff4081; color: white; padding: 15px 30px; border-radius: 30px; font-size: 1.2rem; cursor: pointer; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        * { box-sizing: border-box; }
+        body { 
+            font-family: 'Helvetica Neue', Arial, sans-serif; 
+            margin: 0; display: flex; height: 100vh; background-color: #fce4ec; 
+        }
+        
+        /* 左側邊欄設計 */
+        .sidebar {
+            width: 280px;
+            background-color: #f8bbd0;
+            padding: 20px;
+            box-shadow: 2px 0 10px rgba(0,0,0,0.1);
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        .sidebar h3 { margin-top: 0; color: #880e4f; }
+        input[type="date"] {
+            width: 100%; padding: 10px; border-radius: 8px;
+            border: 1px solid #f06292; font-size: 1rem; outline: none;
+        }
+
+        /* 右邊主畫面設計 */
+        .main-content {
+            flex: 1; padding: 20px; overflow-y: auto;
+            display: flex; flex-direction: column; align-items: center;
+        }
+        
+        /* 打卡按鈕區塊 */
+        .upload-section { margin-bottom: 30px; text-align: center; }
+        .upload-btn {
+            background-color: #ff4081; color: white;
+            padding: 15px 30px; border-radius: 30px; font-size: 1.2rem; 
+            cursor: pointer; box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            display: inline-block; transition: 0.2s;
+        }
+        .upload-btn:active { transform: scale(0.95); }
         input[type="file"] { display: none; }
-        #preview { margin-top: 20px; max-width: 80%; border-radius: 10px; display: none; }
-        #status { margin-top: 15px; font-weight: bold; color: #333; }
+        #status { margin-top: 15px; font-weight: bold; color: #c2185b; }
+
+        /* 照片牆設計 */
+        .gallery {
+            width: 100%; max-width: 600px;
+            display: flex; flex-direction: column; gap: 20px;
+        }
+        .gallery img {
+            width: 100%; border-radius: 12px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.15);
+        }
+        .empty-state { text-align: center; color: #880e4f; font-size: 1.1rem; margin-top: 50px; }
+
+        /* 手機版排版調整：側邊欄跑到上面 */
+        @media (max-width: 768px) {
+            body { flex-direction: column; height: auto; }
+            .sidebar { width: 100%; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        }
     </style>
 </head>
 <body>
-    <h2>📚 今日進度打卡</h2>
-    
-    <label class="upload-btn">
-        📸 拍下今天的進度
-        <input type="file" id="cameraInput" accept="image/*" capture="camera">
-    </label>
 
-    <img id="preview" src="" alt="照片預覽">
-    <div id="status"></div>
+    <aside class="sidebar">
+        <h3>📅 歷史進度回顧</h3>
+        <label>選擇日期：</label>
+        <input type="date" id="datePicker">
+    </aside>
+
+    <main class="main-content">
+        <h2>📚 今日進度打卡</h2>
+        
+        <div class="upload-section">
+            <label class="upload-btn">
+                📸 拍下今天的進度
+                <input type="file" id="cameraInput" accept="image/*" capture="camera">
+            </label>
+            <div id="status"></div>
+        </div>
+
+        <div class="gallery" id="photoGallery">
+            </div>
+    </main>
 
     <script>
         const input = document.getElementById('cameraInput');
-        const preview = document.getElementById('preview');
         const statusText = document.getElementById('status');
+        const datePicker = document.getElementById('datePicker');
+        const photoGallery = document.getElementById('photoGallery');
 
+        // 1. 設定日期選擇器預設為「今天」(台灣時間)
+        const today = new Date(new Date().getTime() + (8 * 60 * 60 * 1000)).toISOString().split('T')[0];
+        datePicker.value = today;
+
+        // 2. 當選擇不同日期時，去跟伺服器要那天的照片
+        datePicker.addEventListener('change', fetchPhotos);
+
+        // 3. 網頁一打開，先自動載入今天的照片
+        fetchPhotos();
+
+        // 負責去抓照片的函數
+        async function fetchPhotos() {
+            const selectedDate = datePicker.value;
+            photoGallery.innerHTML = '<p class="empty-state">載入中...</p>'; // 顯示讀取中
+
+            try {
+                const response = await fetch(`/api/photos?date=${selectedDate}`);
+                const data = await response.json();
+
+                if (data.urls.length === 0) {
+                    photoGallery.innerHTML = '<p class="empty-state">這天沒有打卡紀錄喔 🦥</p>';
+                    return;
+                }
+
+                // 把抓到的照片網址，變成 HTML 圖片標籤塞進網頁
+                photoGallery.innerHTML = '';
+                data.urls.forEach(url => {
+                    const img = document.createElement('img');
+                    img.src = url;
+                    photoGallery.appendChild(img);
+                });
+            } catch (error) {
+                photoGallery.innerHTML = '<p class="empty-state">❌ 讀取失敗，請重新整理</p>';
+            }
+        }
+
+        // 4. 上傳照片的邏輯
         input.addEventListener('change', async function(event) {
             const file = event.target.files[0];
             if (file) {
-                preview.src = URL.createObjectURL(file);
-                preview.style.display = 'block';
-                statusText.innerText = "照片傳送中，請稍候...";
+                statusText.innerText = "照片上傳中，請稍候...";
                 
                 const formData = new FormData();
                 formData.append('photo', file);
 
                 try {
                     const response = await fetch('/upload', { method: 'POST', body: formData });
-                    if (response.ok) {
-                        statusText.innerText = "✅ 打卡成功！男朋友已經收到囉！";
+                    const result = await response.json();
+
+                    if (result.success) {
+                        statusText.innerText = "✅ 打卡成功！";
+                        // 上傳成功後，如果目前看的是「今天」，就自動刷新畫面顯示剛拍的照片！
+                        if (datePicker.value === today) {
+                            fetchPhotos();
+                        }
                     } else {
-                        statusText.innerText = "❌ 上傳失敗，請再試一次。";
+                        statusText.innerText = "❌ 上傳失敗。";
                     }
                 } catch (error) {
                     statusText.innerText = "❌ 網路錯誤。";
