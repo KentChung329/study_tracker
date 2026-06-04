@@ -8,7 +8,7 @@ const PORT = process.env.PORT || 3000;
 
 app.use(express.json());
 
-// 1. 設定你的 Cloudinary 專屬金鑰
+// 1. 設定 Cloudinary 金鑰
 cloudinary.config({ 
     cloud_name: process.env.CLOUDINARY_CLOUD_NAME, 
     api_key: process.env.CLOUDINARY_API_KEY, 
@@ -20,27 +20,28 @@ const upload = multer({ storage: storage });
 
 app.use(express.static('public'));
 
-// 取得台灣時間的日期 (格式：YYYY-MM-DD)
+// 【夜貓子換日邏輯🔥】取得台灣時間的日期，但凌晨 2 點前都算昨天！
 function getTaiwanDateString() {
-    const date = new Date();
-    const twDate = new Date(date.getTime() + (8 * 60 * 60 * 1000));
-    return twDate.toISOString().split('T')[0];
+    const now = new Date();
+    // 台灣是 UTC+8，再減去 2 小時的延遲 = 實加 6 小時
+    const adjustedTime = now.getTime() + (8 * 60 * 60 * 1000) - (2 * 60 * 60 * 1000);
+    return new Date(adjustedTime).toISOString().split('T')[0];
 }
 
-// 【新功能】取得台灣時間的時間點 (格式：HH:MM)
+// 取得台灣時間的時間點（維持真實時間，凌晨 1 點就是顯示 01:XX）
 function getTaiwanTimeString() {
-    const date = new Date();
-    const twDate = new Date(date.getTime() + (8 * 60 * 60 * 1000));
-    return twDate.toISOString().split('T')[1].substring(0, 5);
+    const now = new Date();
+    const twTime = now.getTime() + (8 * 60 * 60 * 1000);
+    return new Date(twTime).toISOString().split('T')[1].substring(0, 5);
 }
 
-// 2. 接收多張照片並【自動加上時間備註】
+// 2. 接收多張照片並自動加上時間備註
 app.post('/upload', upload.array('photos', 10), async (req, res) => {
     if (!req.files || req.files.length === 0) return res.status(400).send('沒有選擇照片');
 
     const todayTag = getTaiwanDateString();
-    const timeStr = getTaiwanTimeString(); // 抓取當下的時間點 (例如 20:45)
-    const userNote = req.body.note || '';  // 夾帶的女友手打備註
+    const timeStr = getTaiwanTimeString();
+    const userNote = req.body.note || '';
 
     // 自動合成最終備註：時間 ＋ 手打內容
     const finalNote = userNote ? `⏰ ${timeStr} ｜ ${userNote}` : `⏰ ${timeStr}`;
@@ -51,8 +52,8 @@ app.post('/upload', upload.array('photos', 10), async (req, res) => {
                 const uploadStream = cloudinary.uploader.upload_stream(
                     {
                         folder: 'study-tracker',
-                        tags: [todayTag],
-                        context: `note=${finalNote}`, // 存入自動合成的備註
+                        tags: [todayTag], 
+                        context: `note=${finalNote}`,
                         fetch_format: 'auto',
                         quality: 'auto'
                     },
@@ -73,7 +74,7 @@ app.post('/upload', upload.array('photos', 10), async (req, res) => {
     }
 });
 
-// 3. 讀取照片與備註
+// 3. 讀取照片
 app.get('/api/photos', async (req, res) => {
     const targetDate = req.query.date;
     if (!targetDate) return res.status(400).send('請提供日期');
@@ -96,16 +97,29 @@ app.get('/api/photos', async (req, res) => {
     }
 });
 
-// 4. 刪除照片
+// 4. 【安全升級🔥】刪除照片（套用夜貓子換日邏輯）
 app.delete('/api/photos', async (req, res) => {
     const public_id = req.body.public_id;
     if (!public_id) return res.status(400).send('缺少照片 ID');
 
     try {
+        const resource = await cloudinary.api.resource(public_id);
+        const todayTag = getTaiwanDateString();
+
+        // 檢查照片標籤，如果不是今天的，直接拒絕刪除
+        if (!resource.tags || !resource.tags.includes(todayTag)) {
+            return res.status(403).json({ 
+                success: false, 
+                message: '不可刪除歷史紀錄！只能刪除今天上傳的照片喔 🙅‍♂️' 
+            });
+        }
+
         await cloudinary.uploader.destroy(public_id);
         res.json({ success: true });
+
     } catch (error) {
         console.error(error);
+        if (error.http_code === 404) return res.status(404).send('找不到該照片');
         res.status(500).send('刪除失敗');
     }
 });

@@ -11,7 +11,6 @@
             margin: 0; background-color: #fdf5f7; color: #333;
         }
         
-        /* 頂部日期選擇區塊 (修復歪斜，改為置中精緻設計) */
         .header {
             background-color: #fff;
             padding: 20px;
@@ -26,12 +25,10 @@
             text-align: center; color: #880e4f; font-weight: bold; background: #fff;
         }
 
-        /* 主內容區塊 */
         .container {
             max-width: 600px; margin: 0 auto; padding: 20px;
         }
         
-        /* 上傳區塊 */
         .upload-card {
             background: #fff; padding: 20px; border-radius: 16px;
             box-shadow: 0 4px 15px rgba(0,0,0,0.05); margin-bottom: 30px;
@@ -51,12 +48,10 @@
             cursor: pointer; transition: 0.2s; font-weight: bold;
         }
         .upload-btn:active { transform: scale(0.97); }
-        /* 使用 multiple 允許選擇多張照片 */
         input[type="file"] { display: none; }
         
         #status { font-weight: bold; color: #d81b60; font-size: 0.9rem; }
 
-        /* 照片牆區塊 */
         .gallery { display: flex; flex-direction: column; gap: 25px; }
         .photo-card {
             position: relative; background: #fff; border-radius: 16px; 
@@ -109,7 +104,9 @@
         const datePicker = document.getElementById('datePicker');
         const photoGallery = document.getElementById('photoGallery');
 
-        const today = new Date(new Date().getTime() + (8 * 60 * 60 * 1000)).toISOString().split('T')[0];
+        // 【前端夜貓子換日邏輯🔥】網頁打開時，如果還沒到凌晨 2 點，日期維持在昨天
+        const adjustedTime = new Date().getTime() + (8 * 60 * 60 * 1000) - (2 * 60 * 60 * 1000);
+        const today = new Date(adjustedTime).toISOString().split('T')[0];
         datePicker.value = today;
 
         datePicker.addEventListener('change', fetchPhotos);
@@ -130,7 +127,6 @@
 
                 photoGallery.innerHTML = '';
                 data.photos.forEach(photo => {
-                    // 建立包含圖片、備註與刪除按鈕的卡片
                     const card = document.createElement('div');
                     card.className = 'photo-card';
                     
@@ -149,7 +145,6 @@
             }
         }
 
-        // 刪除照片的功能
         async function deletePhoto(public_id) {
             const confirmDelete = confirm('確定要刪除這張照片嗎？');
             if (!confirmDelete) return;
@@ -163,16 +158,16 @@
                 
                 const result = await response.json();
                 if (result.success) {
-                    fetchPhotos(); // 刪除成功後重新載入畫面
+                    fetchPhotos(); 
                 } else {
-                    alert('刪除失敗');
+                    // 如果後端回傳 403 (不是今天的照片)，會顯示錯誤訊息
+                    alert(result.message || '刪除失敗');
                 }
             } catch (error) {
                 alert('網路錯誤，請稍後再試');
             }
         }
 
-        // 上傳照片 (支援多張與備註)
         input.addEventListener('change', async function(event) {
             const files = event.target.files;
             if (files.length > 0) {
@@ -190,7 +185,7 @@
 
                     if (result.success) {
                         statusText.innerText = "✅ 打卡成功！";
-                        noteInput.value = ''; // 清空備註欄
+                        noteInput.value = ''; 
                         if (datePicker.value === today) {
                             fetchPhotos();
                         }
