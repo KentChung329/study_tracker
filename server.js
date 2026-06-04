@@ -1,4 +1,4 @@
-require('dotenv').config(); // 召喚隱形斗篷，讀取 .env 密碼本
+require('dotenv').config();
 const express = require('express');
 const multer = require('multer');
 const cloudinary = require('cloudinary').v2;
@@ -8,7 +8,7 @@ const PORT = process.env.PORT || 3000;
 
 app.use(express.json());
 
-// 1. 改成從環境變數讀取金鑰，程式碼裡再也沒有明碼了！
+// 1. 設定你的 Cloudinary 專屬金鑰
 cloudinary.config({ 
     cloud_name: process.env.CLOUDINARY_CLOUD_NAME, 
     api_key: process.env.CLOUDINARY_API_KEY, 
@@ -20,31 +20,39 @@ const upload = multer({ storage: storage });
 
 app.use(express.static('public'));
 
-// ... 下面的程式碼都不用動！ ...
-
+// 取得台灣時間的日期 (格式：YYYY-MM-DD)
 function getTaiwanDateString() {
     const date = new Date();
     const twDate = new Date(date.getTime() + (8 * 60 * 60 * 1000));
     return twDate.toISOString().split('T')[0];
 }
 
-// 2. 接收【多張照片】與【備註】
-// upload.array('photos', 10) 代表一次最多可以傳 10 張
+// 【新功能】取得台灣時間的時間點 (格式：HH:MM)
+function getTaiwanTimeString() {
+    const date = new Date();
+    const twDate = new Date(date.getTime() + (8 * 60 * 60 * 1000));
+    return twDate.toISOString().split('T')[1].substring(0, 5);
+}
+
+// 2. 接收多張照片並【自動加上時間備註】
 app.post('/upload', upload.array('photos', 10), async (req, res) => {
     if (!req.files || req.files.length === 0) return res.status(400).send('沒有選擇照片');
 
     const todayTag = getTaiwanDateString();
-    const note = req.body.note || ''; // 抓取前端傳來的備註
+    const timeStr = getTaiwanTimeString(); // 抓取當下的時間點 (例如 20:45)
+    const userNote = req.body.note || '';  // 夾帶的女友手打備註
+
+    // 自動合成最終備註：時間 ＋ 手打內容
+    const finalNote = userNote ? `⏰ ${timeStr} ｜ ${userNote}` : `⏰ ${timeStr}`;
 
     try {
-        // 使用 Promise.all 讓多張照片同時上傳
         const uploadPromises = req.files.map(file => {
             return new Promise((resolve, reject) => {
                 const uploadStream = cloudinary.uploader.upload_stream(
                     {
                         folder: 'study-tracker',
                         tags: [todayTag],
-                        context: `note=${note}`, // 將備註存入照片的 metadata 裡
+                        context: `note=${finalNote}`, // 存入自動合成的備註
                         fetch_format: 'auto',
                         quality: 'auto'
                     },
@@ -71,13 +79,11 @@ app.get('/api/photos', async (req, res) => {
     if (!targetDate) return res.status(400).send('請提供日期');
 
     try {
-        // 加入 context: true 才能把備註一起抓回來
         const result = await cloudinary.api.resources_by_tag(targetDate, { 
             max_results: 30,
             context: true 
         });
         
-        // 整理照片資料（網址、專屬ID、備註）
         const photos = result.resources.map(img => ({
             id: img.public_id,
             url: img.secure_url,
@@ -90,7 +96,7 @@ app.get('/api/photos', async (req, res) => {
     }
 });
 
-// 4. 【新功能】刪除照片
+// 4. 刪除照片
 app.delete('/api/photos', async (req, res) => {
     const public_id = req.body.public_id;
     if (!public_id) return res.status(400).send('缺少照片 ID');
