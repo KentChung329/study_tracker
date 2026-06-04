@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>專屬讀書打卡</title>
+    <style>
+        body { font-family: sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; background-color: #fce4ec; margin: 0; }
+        .upload-btn { background-color: #ff4081; color: white; padding: 15px 30px; border-radius: 30px; font-size: 1.2rem; cursor: pointer; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        input[type="file"] { display: none; }
+        #preview { margin-top: 20px; max-width: 80%; border-radius: 10px; display: none; }
+        #status { margin-top: 15px; font-weight: bold; color: #333; }
+    </style>
+</head>
+<body>
+    <h2>📚 今日進度打卡</h2>
+    
+    <label class="upload-btn">
+        📸 拍下今天的進度
+        <input type="file" id="cameraInput" accept="image/*" capture="camera">
+    </label>
+
+    <img id="preview" src="" alt="照片預覽">
+    <div id="status"></div>
+
+    <script>
+        const input = document.getElementById('cameraInput');
+        const preview = document.getElementById('preview');
+        const statusText = document.getElementById('status');
+
+        input.addEventListener('change', async function(event) {
+            const file = event.target.files[0];
+            if (file) {
+                preview.src = URL.createObjectURL(file);
+                preview.style.display = 'block';
+                statusText.innerText = "照片傳送中，請稍候...";
+                
+                const formData = new FormData();
+                formData.append('photo', file);
+
+                try {
+                    const response = await fetch('/upload', { method: 'POST', body: formData });
+                    if (response.ok) {
+                        statusText.innerText = "✅ 打卡成功！男朋友已經收到囉！";
+                    } else {
+                        statusText.innerText = "❌ 上傳失敗，請再試一次。";
+                    }
+                } catch (error) {
+                    statusText.innerText = "❌ 網路錯誤。";
+                }
+            }
+        });
+    </script>
+</body>
+</html>
