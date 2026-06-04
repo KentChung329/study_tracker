@@ -2,140 +2,187 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>專屬讀書打卡</title>
     <style>
         * { box-sizing: border-box; }
         body { 
-            font-family: 'Helvetica Neue', Arial, sans-serif; 
-            margin: 0; display: flex; height: 100vh; background-color: #fce4ec; 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; 
+            margin: 0; background-color: #fdf5f7; color: #333;
         }
         
-        /* 左側邊欄設計 */
-        .sidebar {
-            width: 280px;
-            background-color: #f8bbd0;
+        /* 頂部日期選擇區塊 (修復歪斜，改為置中精緻設計) */
+        .header {
+            background-color: #fff;
             padding: 20px;
-            box-shadow: 2px 0 10px rgba(0,0,0,0.1);
-            display: flex;
-            flex-direction: column;
-            gap: 15px;
+            box-shadow: 0 2px 10px rgba(220,150,170,0.15);
+            text-align: center;
+            position: sticky; top: 0; z-index: 100;
         }
-        .sidebar h3 { margin-top: 0; color: #880e4f; }
+        .header h3 { margin: 0 0 10px 0; color: #d81b60; font-size: 1.2rem; }
         input[type="date"] {
-            width: 100%; padding: 10px; border-radius: 8px;
-            border: 1px solid #f06292; font-size: 1rem; outline: none;
+            width: 100%; max-width: 300px; padding: 12px; border-radius: 12px;
+            border: 1px solid #f8bbd0; font-size: 1rem; outline: none;
+            text-align: center; color: #880e4f; font-weight: bold; background: #fff;
         }
 
-        /* 右邊主畫面設計 */
-        .main-content {
-            flex: 1; padding: 20px; overflow-y: auto;
-            display: flex; flex-direction: column; align-items: center;
+        /* 主內容區塊 */
+        .container {
+            max-width: 600px; margin: 0 auto; padding: 20px;
         }
         
-        /* 打卡按鈕區塊 */
-        .upload-section { margin-bottom: 30px; text-align: center; }
+        /* 上傳區塊 */
+        .upload-card {
+            background: #fff; padding: 20px; border-radius: 16px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.05); margin-bottom: 30px;
+            display: flex; flex-direction: column; gap: 15px; text-align: center;
+        }
+        .upload-card h2 { margin: 0; color: #333; font-size: 1.4rem; }
+        
+        input[type="text"] {
+            width: 100%; padding: 12px; border-radius: 10px;
+            border: 1px solid #ddd; font-size: 1rem; outline: none;
+        }
+        input[type="text"]:focus { border-color: #d81b60; }
+        
         .upload-btn {
-            background-color: #ff4081; color: white;
-            padding: 15px 30px; border-radius: 30px; font-size: 1.2rem; 
-            cursor: pointer; box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-            display: inline-block; transition: 0.2s;
+            background-color: #d81b60; color: white;
+            padding: 15px; border-radius: 12px; font-size: 1.1rem; 
+            cursor: pointer; transition: 0.2s; font-weight: bold;
         }
-        .upload-btn:active { transform: scale(0.95); }
+        .upload-btn:active { transform: scale(0.97); }
+        /* 使用 multiple 允許選擇多張照片 */
         input[type="file"] { display: none; }
-        #status { margin-top: 15px; font-weight: bold; color: #c2185b; }
+        
+        #status { font-weight: bold; color: #d81b60; font-size: 0.9rem; }
 
-        /* 照片牆設計 */
-        .gallery {
-            width: 100%; max-width: 600px;
-            display: flex; flex-direction: column; gap: 20px;
+        /* 照片牆區塊 */
+        .gallery { display: flex; flex-direction: column; gap: 25px; }
+        .photo-card {
+            position: relative; background: #fff; border-radius: 16px; 
+            overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.08);
         }
-        .gallery img {
-            width: 100%; border-radius: 12px;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.15);
+        .photo-card img {
+            width: 100%; display: block; object-fit: cover;
         }
-        .empty-state { text-align: center; color: #880e4f; font-size: 1.1rem; margin-top: 50px; }
-
-        /* 手機版排版調整：側邊欄跑到上面 */
-        @media (max-width: 768px) {
-            body { flex-direction: column; height: auto; }
-            .sidebar { width: 100%; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        .photo-note {
+            padding: 15px; margin: 0; font-size: 1rem; color: #444;
+            border-top: 1px solid #eee; background: #fafafa;
         }
+        .delete-btn {
+            position: absolute; top: 10px; right: 10px;
+            background: rgba(255,255,255,0.9); border: none; border-radius: 50%;
+            width: 36px; height: 36px; font-size: 18px; cursor: pointer;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2); display: flex; 
+            align-items: center; justify-content: center;
+        }
+        .delete-btn:active { transform: scale(0.9); }
+        .empty-state { text-align: center; color: #aaa; font-size: 1rem; margin-top: 40px; }
     </style>
 </head>
 <body>
 
-    <aside class="sidebar">
-        <h3>📅 歷史進度回顧</h3>
-        <label>選擇日期：</label>
+    <header class="header">
+        <h3>📅 選擇日期</h3>
         <input type="date" id="datePicker">
-    </aside>
+    </header>
 
-    <main class="main-content">
-        <h2>📚 今日進度打卡</h2>
-        
-        <div class="upload-section">
+    <main class="container">
+        <div class="upload-card">
+            <h2>📚 今日進度打卡</h2>
+            <input type="text" id="noteInput" placeholder="寫點備註吧... (選填)">
+            
             <label class="upload-btn">
-                📸 拍下今天的進度
-                <input type="file" id="cameraInput" accept="image/*" capture="camera">
+                📸 選擇照片 (可多選)
+                <input type="file" id="cameraInput" accept="image/*" multiple>
             </label>
             <div id="status"></div>
         </div>
 
-        <div class="gallery" id="photoGallery">
-            </div>
+        <div class="gallery" id="photoGallery"></div>
     </main>
 
     <script>
         const input = document.getElementById('cameraInput');
+        const noteInput = document.getElementById('noteInput');
         const statusText = document.getElementById('status');
         const datePicker = document.getElementById('datePicker');
         const photoGallery = document.getElementById('photoGallery');
 
-        // 1. 設定日期選擇器預設為「今天」(台灣時間)
         const today = new Date(new Date().getTime() + (8 * 60 * 60 * 1000)).toISOString().split('T')[0];
         datePicker.value = today;
 
-        // 2. 當選擇不同日期時，去跟伺服器要那天的照片
         datePicker.addEventListener('change', fetchPhotos);
-
-        // 3. 網頁一打開，先自動載入今天的照片
         fetchPhotos();
 
-        // 負責去抓照片的函數
         async function fetchPhotos() {
             const selectedDate = datePicker.value;
-            photoGallery.innerHTML = '<p class="empty-state">載入中...</p>'; // 顯示讀取中
+            photoGallery.innerHTML = '<p class="empty-state">載入中...</p>';
 
             try {
                 const response = await fetch(`/api/photos?date=${selectedDate}`);
                 const data = await response.json();
 
-                if (data.urls.length === 0) {
+                if (data.photos.length === 0) {
                     photoGallery.innerHTML = '<p class="empty-state">這天沒有打卡紀錄喔 🦥</p>';
                     return;
                 }
 
-                // 把抓到的照片網址，變成 HTML 圖片標籤塞進網頁
                 photoGallery.innerHTML = '';
-                data.urls.forEach(url => {
-                    const img = document.createElement('img');
-                    img.src = url;
-                    photoGallery.appendChild(img);
+                data.photos.forEach(photo => {
+                    // 建立包含圖片、備註與刪除按鈕的卡片
+                    const card = document.createElement('div');
+                    card.className = 'photo-card';
+                    
+                    let innerHTML = `<button class="delete-btn" onclick="deletePhoto('${photo.id}')">🗑️</button>`;
+                    innerHTML += `<img src="${photo.url}" alt="進度照片">`;
+                    
+                    if (photo.note) {
+                        innerHTML += `<p class="photo-note">💬 ${photo.note}</p>`;
+                    }
+                    
+                    card.innerHTML = innerHTML;
+                    photoGallery.appendChild(card);
                 });
             } catch (error) {
                 photoGallery.innerHTML = '<p class="empty-state">❌ 讀取失敗，請重新整理</p>';
             }
         }
 
-        // 4. 上傳照片的邏輯
+        // 刪除照片的功能
+        async function deletePhoto(public_id) {
+            const confirmDelete = confirm('確定要刪除這張照片嗎？');
+            if (!confirmDelete) return;
+
+            try {
+                const response = await fetch('/api/photos', {
+                    method: 'DELETE',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ public_id: public_id })
+                });
+                
+                const result = await response.json();
+                if (result.success) {
+                    fetchPhotos(); // 刪除成功後重新載入畫面
+                } else {
+                    alert('刪除失敗');
+                }
+            } catch (error) {
+                alert('網路錯誤，請稍後再試');
+            }
+        }
+
+        // 上傳照片 (支援多張與備註)
         input.addEventListener('change', async function(event) {
-            const file = event.target.files[0];
-            if (file) {
-                statusText.innerText = "照片上傳中，請稍候...";
+            const files = event.target.files;
+            if (files.length > 0) {
+                statusText.innerText = `上傳中 (${files.length} 張照片)...`;
                 
                 const formData = new FormData();
-                formData.append('photo', file);
+                for (let i = 0; i < files.length; i++) {
+                    formData.append('photos', files[i]);
+                }
+                formData.append('note', noteInput.value);
 
                 try {
                     const response = await fetch('/upload', { method: 'POST', body: formData });
@@ -143,7 +190,7 @@
 
                     if (result.success) {
                         statusText.innerText = "✅ 打卡成功！";
-                        // 上傳成功後，如果目前看的是「今天」，就自動刷新畫面顯示剛拍的照片！
+                        noteInput.value = ''; // 清空備註欄
                         if (datePicker.value === today) {
                             fetchPhotos();
                         }
